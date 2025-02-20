@@ -45,7 +45,7 @@
     <!-- Bootstrap JS and Custom Script -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        document.getElementById("dataForm").addEventListener("submit", function(event) {
+        document.getElementById("dataForm").addEventListener("submit", async function(event) {
             event.preventDefault();
             const datetime = document.getElementById("dateTimeInput").value;
             const cycles = document.getElementById("dataInput").value;
@@ -60,39 +60,43 @@
             const csvLine = `${datetime},${cycles},${error}\n`;
             const blobUrl = "https://ceidata.blob.core.windows.net/cyclecounts/data.csv?sv=2022-11-02&ss=bfqt&srt=co&sp=rwdlacupiytfx&se=2050-02-20T23:26:39Z&st=2025-02-20T15:26:39Z&spr=https&sig=2hVJ%2BdGBamLRj7XJmqr%2FNlyahtGPbOqo59YKNjXBIVU%3D";
 
-            // Check if blob exists, create it if not, then append
-            fetch(blobUrl, { method: "HEAD" })
-            .then(response => {
-                if (!response.ok && response.status === 404) {
-                    // Create the blob with headers if it doesn’t exist
-                    return fetch(blobUrl, {
+            try {
+                // Check if blob exists
+                const headResponse = await fetch(blobUrl, { method: "HEAD" });
+                if (!headResponse.ok && headResponse.status === 404) {
+                    console.log("Blob not found, creating new AppendBlob...");
+                    const createResponse = await fetch(blobUrl, {
                         method: "PUT",
                         headers: { "x-ms-blob-type": "AppendBlob" },
-                        body: "Timestamp,Cycles,Error\n" // Initial header
+                        body: "Timestamp,Cycles,Error\n"
                     });
+                    if (!createResponse.ok) {
+                        const createErrorText = await createResponse.text();
+                        throw new Error(`Failed to create blob: ${createResponse.status} - ${createResponse.statusText} - ${createErrorText}`);
+                    }
+                    console.log("Blob created successfully");
                 }
-                return Promise.resolve();
-            })
-            .then(() => {
-                // Append the new data
-                return fetch(blobUrl, {
+
+                // Append data
+                const appendResponse = await fetch(`${blobUrl}&comp=append`, {
                     method: "PUT",
                     headers: { "x-ms-blob-type": "AppendBlob" },
                     body: csvLine
                 });
-            })
-            .then(response => {
-                if (response.ok) {
-                    document.getElementById("message").innerHTML = "<p class='text-success'>Data submitted!</p>";
-                    document.getElementById("dataForm").reset();
-                    document.getElementById("errorFields").innerHTML = '';
-                } else {
-                    throw new Error("Failed to append data");
+
+                if (!appendResponse.ok) {
+                    const appendErrorText = await appendResponse.text();
+                    throw new Error(`Append failed: ${appendResponse.status} - ${appendResponse.statusText} - ${appendErrorText}`);
                 }
-            })
-            .catch(err => {
+
+                console.log("Data appended successfully");
+                document.getElementById("message").innerHTML = "<p class='text-success'>Data submitted!</p>";
+                document.getElementById("dataForm").reset();
+                document.getElementById("errorFields").innerHTML = '';
+            } catch (err) {
+                console.error("Fetch error details:", err);
                 document.getElementById("message").innerHTML = "<p class='text-danger'>Error: " + err.message + "</p>";
-            });
+            }
         });
 
         // Prefill the date/time field with current Pacific Time (PST/PDT)
