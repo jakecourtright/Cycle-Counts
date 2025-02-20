@@ -11,14 +11,13 @@
         .form-container { max-width: 500px; margin: 0 auto; }
         .error-group { position: relative; }
         .remove-error { position: absolute; right: 0; top: 0; cursor: pointer; }
-        /* Seafoam green for Add Error button */
         .btn-seafoam {
             background-color: #20B2AA;
             border-color: #20B2AA;
             color: white;
         }
         .btn-seafoam:hover {
-            background-color: #1A9A93; /* Slightly darker for hover */
+            background-color: #1A9A93;
             border-color: #1A9A93;
         }
     </style>
@@ -57,7 +56,7 @@
                 errorGroup.innerHTML = `
                     <select class="form-select errorSelect">
                         <option value="">Select Error Type</option>
-                        <option value="E01">E01 - Input Error</option>
+                        <option value="E01">E01 - Waiting for Hay</option>
                         <option value="E02">E02 - System Error</option>
                         <option value="E03">E03 - Network Error</option>
                     </select>
@@ -66,7 +65,6 @@
                 
                 errorFields.appendChild(errorGroup);
                 
-                // Add remove functionality to the new error field
                 errorGroup.querySelector(".remove-error").addEventListener("click", function() {
                     errorGroup.remove();
                 });
@@ -112,42 +110,47 @@
                 const blobUrl = "https://ceidata.blob.core.windows.net/cyclecounts/data.csv?sv=2022-11-02&ss=bfqt&srt=co&sp=rwdlacupiytfx&se=2050-02-20T23:26:39Z&st=2025-02-20T15:26:39Z&spr=https&sig=2hVJ%2BdGBamLRj7XJmqr%2FNlyahtGPbOqo59YKNjXBIVU%3D";
 
                 try {
-                    console.log("Attempting to fetch blob...");
-                    const headResponse = await fetch(blobUrl, { method: "HEAD" });
-                    console.log("HEAD response status:", headResponse.status);
+                    // Try to append data first
+                    console.log("Attempting to append data...");
+                    const dataBlob = new Blob([csvLine], { type: "text/csv" });
+                    let appendResponse = await fetch(`${blobUrl}&comp=appendblock`, {
+                        method: "PUT",
+                        headers: {
+                            "x-ms-blob-type": "AppendBlob",
+                            "Content-Type": "text/csv",
+                            "x-ms-version": "2022-11-02"
+                        },
+                        body: dataBlob
+                    });
 
-                    if (!headResponse.ok && headResponse.status === 404) {
-                        console.log("Blob not found, creating new AppendBlob...");
+                    // If append fails, try to create the blob first
+                    if (!appendResponse.ok) {
+                        console.log("Append failed, creating new blob...");
                         const headerContent = "Timestamp,Cycles,Error\n";
-                        const headerBlob = new Blob([headerContent], { type: "text/csv" });
-
                         const createResponse = await fetch(blobUrl, {
                             method: "PUT",
                             headers: {
                                 "x-ms-blob-type": "AppendBlob",
                                 "Content-Type": "text/csv",
                                 "x-ms-version": "2022-11-02"
-                            },
-                            body: headerBlob
+                            }
                         });
 
                         if (!createResponse.ok) {
                             throw new Error(`Failed to create blob: ${createResponse.status} - ${await createResponse.text()}`);
                         }
-                        console.log("Blob created successfully");
-                    }
 
-                    // Append the new data
-                    console.log("Attempting to append data...");
-                    const dataBlob = new Blob([csvLine], { type: "text/csv" });
-                    const appendResponse = await fetch(`${blobUrl}&comp=appendblock`, {
-                        method: "PUT",
-                        headers: {
-                            "x-ms-blob-type": "AppendBlob",
-                            "Content-Type": "text/csv"
-                        },
-                        body: dataBlob
-                    });
+                        // Try append again after creating
+                        appendResponse = await fetch(`${blobUrl}&comp=appendblock`, {
+                            method: "PUT",
+                            headers: {
+                                "x-ms-blob-type": "AppendBlob",
+                                "Content-Type": "text/csv",
+                                "x-ms-version": "2022-11-02"
+                            },
+                            body: dataBlob
+                        });
+                    }
 
                     if (!appendResponse.ok) {
                         throw new Error(`Failed to append data: ${appendResponse.status} - ${await appendResponse.text()}`);
