@@ -26,10 +26,9 @@
     <div class="container mt-5 form-container">
         <h1 class="text-center mb-4">Cycle Counts</h1>
         <form id="dataForm" class="p-4 bg-white shadow rounded">
-            <div class="mb-3">
-                <label for="dateTimeInput" class="form-label">Date/Time</label>
-                <input type="datetime-local" class="form-control" id="dateTimeInput" name="datetime" required>
-            </div>
+            <!-- Hidden datetime input -->
+            <input type="hidden" id="dateTimeInput" name="datetime">
+            
             <div class="mb-3">
                 <label for="dataInput" class="form-label">Enter Cycles</label>
                 <input type="text" class="form-control" id="dataInput" name="data" placeholder="Your cycles here" required>
@@ -57,9 +56,8 @@
                     <select class="form-select errorSelect">
                         <option value="">Select Error Type</option>
                         <option value="E01">E01 - Waiting for Hay</option>
-                        <option value="E02">E02 - Bad Hay</option>
-                        <option value="E03">E03 - Breakdown</option>
-                        <option value="E03">E03 - Strappers</option>
+                        <option value="E02">E02 - System Error</option>
+                        <option value="E03">E03 - Network Error</option>
                     </select>
                     <button type="button" class="btn btn-danger remove-error">&times;</button>
                 `;
@@ -71,31 +69,39 @@
                 });
             });
 
-            // Prefill date/time with Pacific Time
-            const now = new Date();
-            const pacificTime = new Intl.DateTimeFormat('en-US', {
-                timeZone: 'America/Los_Angeles',
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false
-            }).formatToParts(now);
+            // Function to update hidden datetime field
+            function updateDateTime() {
+                const now = new Date();
+                const pacificTime = new Intl.DateTimeFormat('en-US', {
+                    timeZone: 'America/Los_Angeles',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                }).formatToParts(now);
 
-            const year = pacificTime.find(part => part.type === 'year').value;
-            const month = pacificTime.find(part => part.type === 'month').value;
-            const day = pacificTime.find(part => part.type === 'day').value;
-            const hour = pacificTime.find(part => part.type === 'hour').value;
-            const minute = pacificTime.find(part => part.type === 'minute').value;
+                const year = pacificTime.find(part => part.type === 'year').value;
+                const month = pacificTime.find(part => part.type === 'month').value;
+                const day = pacificTime.find(part => part.type === 'day').value;
+                const hour = pacificTime.find(part => part.type === 'hour').value;
+                const minute = pacificTime.find(part => part.type === 'minute').value;
 
-            const formattedDateTime = `${year}-${month}-${day}T${hour}:${minute}`;
-            document.getElementById("dateTimeInput").value = formattedDateTime;
+                const formattedDateTime = `${year}-${month}-${day}T${hour}:${minute}`;
+                document.getElementById("dateTimeInput").value = formattedDateTime;
+            }
+
+            // Initial datetime set
+            updateDateTime();
 
             // Form submission
             document.getElementById("dataForm").addEventListener("submit", async function(event) {
                 event.preventDefault();
                 console.log("Form submitted");
+
+                // Update datetime right before submission
+                updateDateTime();
 
                 const datetime = document.getElementById("dateTimeInput").value;
                 const cycles = document.getElementById("dataInput").value;
