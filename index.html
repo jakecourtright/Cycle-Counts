@@ -96,16 +96,14 @@
 
                     if (!headResponse.ok && headResponse.status === 404) {
                         console.log("Blob not found, creating new AppendBlob...");
-                        const headerContent = "Timestamp,Cycles,Error\n";
                         const createResponse = await fetch(blobUrl, {
                             method: "PUT",
                             headers: {
                                 "x-ms-blob-type": "AppendBlob",
-                                "Content-Length": headerContent.length.toString(),  // Calculate exact length
-                                "Content-Type": "text/plain",
+                                "Content-Type": "application/octet-stream",  // Revert to a generic binary type
                                 "x-ms-version": "2022-11-02"
                             },
-                            body: headerContent
+                            body: "Timestamp,Cycles,Error\n"  // Ensure UTF-8 encoding
                         });
                         if (!createResponse.ok) {
                             const errorText = await createResponse.text();
@@ -121,7 +119,7 @@
                         method: "PUT",
                         headers: {
                             "x-ms-blob-type": "AppendBlob",
-                            "Content-Type": "text/csv",  // Use text/csv for appending CSV data
+                            "Content-Type": "text/csv",  // Keep text/csv for appending CSV data
                             "x-ms-version": "2022-11-02"
                         },
                         body: csvLine
