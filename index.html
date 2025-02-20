@@ -100,10 +100,11 @@
                             method: "PUT",
                             headers: {
                                 "x-ms-blob-type": "AppendBlob",
-                                "Content-Type": "text/plain",  // Try text/plain as a fallback for initial creation
+                                "Content-Length": "20",
+                                "Content-Type": "text/plain",
                                 "x-ms-version": "2022-11-02"
                             },
-                            body: "Timestamp,Cycles,Error\n"  // Ensure this is a valid CSV header
+                            body: "Timestamp,Cycles,Error\n"
                         });
                         if (!createResponse.ok) {
                             const errorText = await createResponse.text();
