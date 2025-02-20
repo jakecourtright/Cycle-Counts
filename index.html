@@ -100,8 +100,9 @@
                             method: "PUT",
                             headers: {
                                 "x-ms-blob-type": "AppendBlob",
-                                "Content-Type": "application/octet-stream",  // Revert to a generic binary type
+                                "Content-Type": "application/octet-stream",  // Generic binary type for creation
                                 "x-ms-version": "2022-11-02"
+                                // Do not explicitly set Content-Length; let fetch handle it
                             },
                             body: "Timestamp,Cycles,Error\n"  // Ensure UTF-8 encoding
                         });
@@ -119,8 +120,9 @@
                         method: "PUT",
                         headers: {
                             "x-ms-blob-type": "AppendBlob",
-                            "Content-Type": "text/csv",  // Keep text/csv for appending CSV data
+                            "Content-Type": "text/csv",  // Use text/csv for appending CSV data
                             "x-ms-version": "2022-11-02"
+                            // Do not explicitly set Content-Length; let fetch handle it
                         },
                         body: csvLine
                     });
