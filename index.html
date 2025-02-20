@@ -92,7 +92,7 @@
                 try {
                     console.log("Attempting to fetch blob...");
                     const headResponse = await fetch(blobUrl, { method: "HEAD" });
-                    console.log("HEAD response status:", headResponse.status);
+                    console.log("HEAD response status:", headResponse.status, "Headers:", headResponse.headers);
 
                     if (!headResponse.ok && headResponse.status === 404) {
                         console.log("Blob not found, creating new AppendBlob...");
@@ -100,12 +100,16 @@
                             method: "PUT",
                             headers: {
                                 "x-ms-blob-type": "AppendBlob",
-                                "Content-Type": "text/csv",  // Changed to text/csv for CSV data
+                                "Content-Type": "text/plain",  // Try text/plain as a fallback for initial creation
                                 "x-ms-version": "2022-11-02"
                             },
-                            body: "Timestamp,Cycles,Error\n"  // Initial CSV header
+                            body: "Timestamp,Cycles,Error\n"  // Ensure this is a valid CSV header
                         });
-                        if (!createResponse.ok) throw new Error(`Failed to create blob: ${createResponse.status} - ${await createResponse.text()}`);
+                        if (!createResponse.ok) {
+                            const errorText = await createResponse.text();
+                            throw new Error(`Failed to create blob: ${createResponse.status} - ${errorText}`);
+                        }
+                        console.log("Blob created successfully");
                     } else if (!headResponse.headers.get("x-ms-blob-type")?.includes("AppendBlob")) {
                         throw new Error("Existing blob is not an AppendBlob");
                     }
@@ -115,13 +119,16 @@
                         method: "PUT",
                         headers: {
                             "x-ms-blob-type": "AppendBlob",
-                            "Content-Type": "text/csv",  // Changed to text/csv for CSV data
+                            "Content-Type": "text/csv",  // Use text/csv for appending CSV data
                             "x-ms-version": "2022-11-02"
                         },
                         body: csvLine
                     });
 
-                    if (!appendResponse.ok) throw new Error(`Append failed: ${appendResponse.status} - ${await appendResponse.text()}`);
+                    if (!appendResponse.ok) {
+                        const errorText = await appendResponse.text();
+                        throw new Error(`Append failed: ${appendResponse.status} - ${errorText}`);
+                    }
 
                     document.getElementById("message").innerHTML = "<p class='text-success'>Data submitted!</p>";
                     document.getElementById("dataForm").reset();
