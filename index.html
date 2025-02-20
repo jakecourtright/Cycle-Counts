@@ -22,8 +22,9 @@
                 const createResponse = await fetch(blobUrl, {
                     method: "PUT",
                     headers: {
-                        "x-ms-blob-type": "AppendBlob",
-                        "Content-Type": "text/csv"
+                        "x-ms-blob-type": "AppendBlob",  // Required for AppendBlob
+                        "Content-Type": "text/plain",    // Changed from text/csv to text/plain for simplicity
+                        "x-ms-version": "2022-11-02"     // Match SAS version for consistency
                     },
                     body: "Timestamp,Cycles,Error\n"
                 });
@@ -32,15 +33,17 @@
                     throw new Error(`Failed to create blob: ${createResponse.status} - ${createResponse.statusText} - ${createErrorText}`);
                 }
                 console.log("Blob created successfully");
+            } else if (!headResponse.headers.get("x-ms-blob-type")?.includes("AppendBlob")) {
+                throw new Error("Existing blob is not an AppendBlob");
             }
 
-            // Append data (explicitly using AppendBlob endpoint)
-            const appendResponse = await fetch(`${blobUrl}&comp=appendblock`, {  // Changed to appendblock for clarity
+            // Append data
+            const appendResponse = await fetch(`${blobUrl}&comp=appendblock`, {
                 method: "PUT",
                 headers: {
                     "x-ms-blob-type": "AppendBlob",
-                    "Content-Type": "text/csv",
-                    "x-ms-blob-content-type": "text/csv"  // Optional, but helps
+                    "Content-Type": "text/plain",    // Match the creation type
+                    "x-ms-version": "2022-11-02"
                 },
                 body: csvLine
             });
