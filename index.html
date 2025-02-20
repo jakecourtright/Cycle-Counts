@@ -45,10 +45,32 @@
     <!-- Bootstrap JS and Custom Script -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        console.log("Script loaded"); // Debug to confirm script execution
-
         document.addEventListener("DOMContentLoaded", function() {
-            console.log("DOM fully loaded"); // Debug DOM readiness
+            console.log("DOM fully loaded");
+
+            // Add Error button functionality
+            document.getElementById("addErrorButton").addEventListener("click", function() {
+                const errorFields = document.getElementById("errorFields");
+                const errorGroup = document.createElement("div");
+                errorGroup.className = "error-group mb-3";
+                
+                errorGroup.innerHTML = `
+                    <select class="form-select errorSelect">
+                        <option value="">Select Error Type</option>
+                        <option value="E01">E01 - Input Error</option>
+                        <option value="E02">E02 - System Error</option>
+                        <option value="E03">E03 - Network Error</option>
+                    </select>
+                    <button type="button" class="btn btn-danger remove-error">&times;</button>
+                `;
+                
+                errorFields.appendChild(errorGroup);
+                
+                // Add remove functionality to the new error field
+                errorGroup.querySelector(".remove-error").addEventListener("click", function() {
+                    errorGroup.remove();
+                });
+            });
 
             // Prefill date/time with Pacific Time
             const now = new Date();
@@ -92,32 +114,64 @@
                 try {
                     console.log("Attempting to fetch blob...");
                     const headResponse = await fetch(blobUrl, { method: "HEAD" });
-                    console.log("HEAD response status:", headResponse.status, "Headers:", Object.fromEntries(headResponse.headers));
+                    console.log("HEAD response status:", headResponse.status);
 
                     if (!headResponse.ok && headResponse.status === 404) {
                         console.log("Blob not found, creating new AppendBlob...");
+                        const headerContent = "Timestamp,Cycles,Error\n";
+                        const headerBlob = new Blob([headerContent], { type: "text/csv" });
+
                         const createResponse = await fetch(blobUrl, {
                             method: "PUT",
                             headers: {
                                 "x-ms-blob-type": "AppendBlob",
-                                "Content-Type": "application/octet-stream",  // Generic binary type for creation
+                                "Content-Type": "text/csv",
                                 "x-ms-version": "2022-11-02"
-                                // Do not explicitly set Content-Length; let fetch handle it implicitly
                             },
-                            body: new Blob(["Timestamp,Cycles,Error\n"], { type: "application/octet-stream" })  // Use Blob for better control
+                            body: headerBlob
                         });
+
                         if (!createResponse.ok) {
-                            const errorText = await createResponse.text();
-                            throw new Error(`Failed to create blob: ${createResponse.status} - ${errorText}`);
+                            throw new Error(`Failed to create blob: ${createResponse.status} - ${await createResponse.text()}`);
                         }
                         console.log("Blob created successfully");
-                    } else if (!headResponse.headers.get("x-ms-blob-type")?.includes("AppendBlob")) {
-                        throw new Error("Existing blob is not an AppendBlob");
                     }
 
+                    // Append the new data
                     console.log("Attempting to append data...");
+                    const dataBlob = new Blob([csvLine], { type: "text/csv" });
                     const appendResponse = await fetch(`${blobUrl}&comp=appendblock`, {
                         method: "PUT",
                         headers: {
                             "x-ms-blob-type": "AppendBlob",
-                            "Content-Type": "text/csv",  // Use text/csv for appending CSV data
+                            "Content-Type": "text/csv"
+                        },
+                        body: dataBlob
+                    });
+
+                    if (!appendResponse.ok) {
+                        throw new Error(`Failed to append data: ${appendResponse.status} - ${await appendResponse.text()}`);
+                    }
+
+                    // Show success message
+                    document.getElementById("message").innerHTML = `
+                        <div class="alert alert-success">
+                            Data submitted successfully!
+                        </div>`;
+                    
+                    // Clear the form
+                    document.getElementById("dataInput").value = "";
+                    document.querySelectorAll('.error-group').forEach(group => group.remove());
+
+                } catch (error) {
+                    console.error("Error:", error);
+                    document.getElementById("message").innerHTML = `
+                        <div class="alert alert-danger">
+                            Error: ${error.message}
+                        </div>`;
+                }
+            });
+        });
+    </script>
+</body>
+</html>
