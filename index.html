@@ -96,15 +96,16 @@
 
                     if (!headResponse.ok && headResponse.status === 404) {
                         console.log("Blob not found, creating new AppendBlob...");
+                        const headerContent = "Timestamp,Cycles,Error\n";
                         const createResponse = await fetch(blobUrl, {
                             method: "PUT",
                             headers: {
                                 "x-ms-blob-type": "AppendBlob",
-                                "Content-Length": "20",
+                                "Content-Length": headerContent.length.toString(),  // Calculate exact length
                                 "Content-Type": "text/plain",
                                 "x-ms-version": "2022-11-02"
                             },
-                            body: "Timestamp,Cycles,Error\n"
+                            body: headerContent
                         });
                         if (!createResponse.ok) {
                             const errorText = await createResponse.text();
