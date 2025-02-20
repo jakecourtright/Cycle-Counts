@@ -1,61 +1,113 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hourly Cycle Counts</title>
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body { background-color: #f8f9fa; }
-        .form-container { max-width: 500px; margin: 0 auto; }
-        .error-group { position: relative; }
-        .remove-error { position: absolute; right: 0; top: 0; cursor: pointer; }
-        /* Seafoam green for Add Error button */
-        .btn-seafoam {
-            background-color: #20B2AA;
-            border-color: #20B2AA;
-            color: white;
-        }
-        .btn-seafoam:hover {
-            background-color: #1A9A93; /* Slightly darker for hover */
-            border-color: #1A9A93;
-        }
-    </style>
-</head>
-<body>
-    <div class="container mt-5 form-container">
-        <h1 class="text-center mb-4">Cycle Counts</h1>
-        <form id="dataForm" class="p-4 bg-white shadow rounded">
-            <div class="mb-3">
-                <label for="dateTimeInput" class="form-label">Date/Time</label>
-                <input type="datetime-local" class="form-control" id="dateTimeInput" name="datetime" required>
-            </div>
-            <div class="mb-3">
-                <label for="dataInput" class="form-label">Enter Cycles</label>
-                <input type="text" class="form-control" id="dataInput" name="data" placeholder="Your cycles here" required>
-            </div>
-            <button type="button" class="btn btn-seafoam w-100 mb-3" id="addErrorButton">Add Error</button>
-            <div id="errorFields"></div>
-            <button type="submit" class="btn btn-success w-100">Submit</button>
-        </form>
-        <div id="message" class="mt-3 text-center"></div>
-    </div>
+<script>
+    document.getElementById("dataForm").addEventListener("submit", async function(event) {
+        event.preventDefault();
+        const datetime = document.getElementById("dateTimeInput").value;
+        const cycles = document.getElementById("dataInput").value;
+        const errorFields = document.querySelectorAll('.error-group');
+        let error = '';
 
-    <!-- Bootstrap JS and Custom Script -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        document.getElementById("dataForm").addEventListener("submit", async function(event) {
-            event.preventDefault();
-            const datetime = document.getElementById("dateTimeInput").value;
-            const cycles = document.getElementById("dataInput").value;
-            const errorFields = document.querySelectorAll('.error-group');
-            let error = '';
+        errorFields.forEach(field => {
+            const errorSelect = field.querySelector('.errorSelect').value;
+            if (errorSelect) error += `${errorSelect};`;
+        });
 
-            errorFields.forEach(field => {
-                const errorSelect = field.querySelector('.errorSelect').value;
-                if (errorSelect) error += `${errorSelect};`;
+        const csvLine = `${datetime},${cycles},${error}\n`;
+        const blobUrl = "https://ceidata.blob.core.windows.net/cyclecounts/data.csv?sv=2022-11-02&ss=bfqt&srt=co&sp=rwdlacupiytfx&se=2050-02-20T23:26:39Z&st=2025-02-20T15:26:39Z&spr=https&sig=2hVJ%2BdGBamLRj7XJmqr%2FNlyahtGPbOqo59YKNjXBIVU%3D";
+
+        try {
+            // Check if blob exists
+            const headResponse = await fetch(blobUrl, { method: "HEAD" });
+            if (!headResponse.ok && headResponse.status === 404) {
+                console.log("Blob not found, creating new AppendBlob...");
+                const createResponse = await fetch(blobUrl, {
+                    method: "PUT",
+                    headers: {
+                        "x-ms-blob-type": "AppendBlob",  // Required for AppendBlob
+                        "Content-Type": "text/plain",    // Changed from text/csv to text/plain for simplicity
+                        "x-ms-version": "2022-11-02"     // Match SAS version for consistency
+                    },
+                    body: "Timestamp,Cycles,Error\n"
+                });
+                if (!createResponse.ok) {
+                    const createErrorText = await createResponse.text();
+                    throw new Error(`Failed to create blob: ${createResponse.status} - ${createResponse.statusText} - ${createErrorText}`);
+                }
+                console.log("Blob created successfully");
+            } else if (!headResponse.headers.get("x-ms-blob-type")?.includes("AppendBlob")) {
+                throw new Error("Existing blob is not an AppendBlob");
+            }
+
+            // Append data
+            const appendResponse = await fetch(`${blobUrl}&comp=appendblock`, {
+                method: "PUT",
+                headers: {
+                    "x-ms-blob-type": "AppendBlob",
+                    "Content-Type": "text/plain",    // Match the creation type
+                    "x-ms-version": "2022-11-02"
+                },
+                body: csvLine
             });
 
-            const csvLine = `${datetime},${cycles},${error}\n`;
-            const blobUrl = "https://ceidata.blob.core.windows.net/cyclecounts/data.csv?sv=2022-11-02&ss=bfqt&s
+            if (!appendResponse.ok) {
+                const appendErrorText = await appendResponse.text();
+                throw new Error(`Append failed: ${appendResponse.status} - ${appendResponse.statusText} - ${appendErrorText}`);
+            }
+
+            console.log("Data appended successfully");
+            document.getElementById("message").innerHTML = "<p class='text-success'>Data submitted!</p>";
+            document.getElementById("dataForm").reset();
+            document.getElementById("errorFields").innerHTML = '';
+        } catch (err) {
+            console.error("Fetch error details:", err);
+            document.getElementById("message").innerHTML = "<p class='text-danger'>Error: " + err.message + "</p>";
+        }
+    });
+
+    // Prefill the date/time field with current Pacific Time (PST/PDT)
+    window.onload = function() {
+        const now = new Date();
+        const pacificTime = new Intl.DateTimeFormat('en-US', {
+            timeZone: 'America/Los_Angeles',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        }).formatToParts(now);
+
+        const year = pacificTime.find(part => part.type === 'year').value;
+        const month = pacificTime.find(part => part.type === 'month').value;
+        const day = pacificTime.find(part => part.type === 'day').value;
+        const hour = pacificTime.find(part => part.type === 'hour').value;
+        const minute = pacificTime.find(part => part.type === 'minute').value;
+
+        const formattedDateTime = `${year}-${month}-${day}T${hour}:${minute}`;
+        document.getElementById("dateTimeInput").value = formattedDateTime;
+    };
+
+    document.getElementById("addErrorButton").addEventListener("click", function() {
+        const errorFields = document.getElementById("errorFields");
+        const errorGroup = document.createElement('div');
+        errorGroup.classList.add('error-group', 'mb-3');
+        errorGroup.innerHTML = `
+            <div class="mb-3">
+                <label for="errorSelect" class="form-label">Errors</label>
+                <select class="form-control errorSelect" name="error">
+                    <option value="">Select an error</option>
+                    <option value="Strapper Fail">Strapper Fail</option>
+                    <option value="Waiting for Hay">Waiting for Hay</option>
+                    <option value="Bad Hay">Bad Hay</option>
+                    <option value="Breakdown">Breakdown</option>
+                </select>
+            </div>
+            <span class="remove-error">×</span>
+        `;
+
+        errorFields.appendChild(errorGroup);
+
+        errorGroup.querySelector('.remove-error').addEventListener('click', function() {
+            errorGroup.remove();
+        });
+    });
+</script>
