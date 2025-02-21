@@ -10,7 +10,7 @@
         body { background-color: #f8f9fa; }
         .form-container { max-width: 500px; margin: 0 auto; }
         .error-group { position: relative; }
-        .remove-error { position: absolute; right: 0; top: 0; cursor: pointer; }
+        .remove-error { position: absolute; right: 0; top: 0; cursor: pointer; padding: 2px 8px; }
         .btn-seafoam {
             background-color: #20B2AA;
             border-color: #20B2AA;
@@ -26,7 +26,6 @@
     <div class="container mt-5 form-container">
         <h1 class="text-center mb-4">Cycle Counts</h1>
         <form id="dataForm" class="p-4 bg-white shadow rounded">
-            <!-- Hidden datetime input -->
             <input type="hidden" id="dateTimeInput" name="datetime">
             
             <div class="mb-3">
@@ -46,30 +45,7 @@
         document.addEventListener("DOMContentLoaded", function() {
             console.log("DOM fully loaded");
 
-            // Add Error button functionality
-            document.getElementById("addErrorButton").addEventListener("click", function() {
-                const errorFields = document.getElementById("errorFields");
-                const errorGroup = document.createElement("div");
-                errorGroup.className = "error-group mb-3";
-                
-                errorGroup.innerHTML = `
-                    <select class="form-select errorSelect">
-                        <option value="">Select Error Type</option>
-                        <option value="E01">E01 - Waiting for Hay</option>
-                        <option value="E02">E02 - System Error</option>
-                        <option value="E03">E03 - Network Error</option>
-                    </select>
-                    <button type="button" class="btn btn-danger remove-error">&times;</button>
-                `;
-                
-                errorFields.appendChild(errorGroup);
-                
-                errorGroup.querySelector(".remove-error").addEventListener("click", function() {
-                    errorGroup.remove();
-                });
-            });
-
-            // Function to update hidden datetime field
+            // Function to update hidden datetime field (Pacific Time)
             function updateDateTime() {
                 const now = new Date();
                 const pacificTime = new Intl.DateTimeFormat('en-US', {
@@ -88,23 +64,51 @@
                 const hour = pacificTime.find(part => part.type === 'hour').value;
                 const minute = pacificTime.find(part => part.type === 'minute').value;
 
-                const formattedDateTime = `${year}-${month}-${day}T${hour}:${minute}`;
-                document.getElementById("dateTimeInput").value = formattedDateTime;
+                return `${year}-${month}-${day}T${hour}:${minute}`;
             }
 
-            // Initial datetime set
-            updateDateTime();
+            // Add Error button functionality
+            document.getElementById("addErrorButton").addEventListener("click", function() {
+                const errorFields = document.getElementById("errorFields");
+                const errorGroup = document.createElement("div");
+                errorGroup.className = "error-group mb-3 d-flex align-items-center gap-2";
+                
+                errorGroup.innerHTML = `
+                    <select class="form-select errorSelect flex-grow-1">
+                        <option value="">Select Error Type</option>
+                        <option value="E01">E01 - Waiting for Hay</option>
+                        <option value="E02">E02 - System Error</option>
+                        <option value="E03">E03 - Network Error</option>
+                    </select>
+                    <button type="button" class="btn btn-danger remove-error">×</button>
+                `;
+                
+                errorFields.appendChild(errorGroup);
+                
+                errorGroup.querySelector(".remove-error").addEventListener("click", function() {
+                    errorGroup.remove();
+                });
+            });
 
             // Form submission
             document.getElementById("dataForm").addEventListener("submit", async function(event) {
                 event.preventDefault();
                 console.log("Form submitted");
 
-                // Update datetime right before submission
-                updateDateTime();
-
-                const datetime = document.getElementById("dateTimeInput").value;
+                // Validate cycles input
                 const cycles = document.getElementById("dataInput").value;
+                if (!/^\d+$/.test(cycles) || parseInt(cycles) <= 0) {
+                    document.getElementById("message").innerHTML = `
+                        <div class="alert alert-warning">
+                            Please enter a valid positive number for cycles.
+                        </div>`;
+                    return;
+                }
+
+                // Update datetime before submission
+                const datetime = updateDateTime();
+                document.getElementById("dateTimeInput").value = datetime;
+
                 const errorFields = document.querySelectorAll('.error-group');
                 let error = '';
 
@@ -117,6 +121,9 @@
                 const blobUrl = "https://ceidata.blob.core.windows.net/cyclecounts/data.csv?sv=2022-11-02&ss=bfqt&srt=co&sp=rwdlacupiytfx&se=2050-02-20T23:26:39Z&st=2025-02-20T15:26:39Z&spr=https&sig=2hVJ%2BdGBamLRj7XJmqr%2FNlyahtGPbOqo59YKNjXBIVU%3D";
 
                 try {
+                    // Show loading state
+                    document.getElementById("message").innerHTML = '<div class="alert alert-info">Submitting...</div>';
+
                     // Try to append data first
                     console.log("Attempting to append data...");
                     const dataBlob = new Blob([csvLine], { type: "text/csv" });
@@ -133,7 +140,6 @@
                     // If append fails, try to create the blob first
                     if (!appendResponse.ok) {
                         console.log("Append failed, creating new blob...");
-                        const headerContent = "Timestamp,Cycles,Error\n";
                         const createResponse = await fetch(blobUrl, {
                             method: "PUT",
                             headers: {
@@ -141,6 +147,7 @@
                                 "Content-Type": "text/csv",
                                 "x-ms-version": "2022-11-02"
                             }
+                            // No body for initial AppendBlob creation
                         });
 
                         if (!createResponse.ok) {
@@ -169,15 +176,14 @@
                             Data submitted successfully!
                         </div>`;
                     
-                    // Clear the form
-                    document.getElementById("dataInput").value = "";
-                    document.querySelectorAll('.error-group').forEach(group => group.remove());
+                    // Reset the form
+                    document.getElementById("dataForm").reset();
 
                 } catch (error) {
-                    console.error("Error:", error);
+                    console.error("Submission error:", error);
                     document.getElementById("message").innerHTML = `
                         <div class="alert alert-danger">
-                            Error: ${error.message}
+                            Failed to submit data. Please try again or contact support.
                         </div>`;
                 }
             });
